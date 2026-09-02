@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      min-width: 220px;
+      margin: 0;
+      padding: 12px 16px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #666;
+    }
+    /* iOS-style switch */
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex: none;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      background: #ccc;
+      border-radius: 22px;
+      transition: 0.2s;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+    .switch input:checked + .slider {
+      background: #4caf50;
+    }
+    .switch input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <span class="title">解除复制限制</span>
+    <label class="switch">
+      <input type="checkbox" id="toggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div class="hint">切换后立即对当前标签页生效，其他标签页在刷新后生效。</div>
+  <script src="popup.js"></script>
+</body>
+</html>

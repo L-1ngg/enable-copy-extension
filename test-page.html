@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>防复制测试页</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 640px;
+      margin: 40px auto;
+      padding: 0 16px;
+      /* 防护 1：CSS 禁止选择 */
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+    #log {
+      color: #c00;
+      font-size: 13px;
+      min-height: 1.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1>防复制测试页</h1>
+  <div class="card">
+    <p>这段文字被五种常见手段保护：禁止选择、禁止右键、劫持复制、禁止快捷键、禁止拖拽。</p>
+    <p>启用扩展后，应当可以正常选中、右键、Ctrl+C 复制，且粘贴结果不附带追踪尾巴。</p>
+  </div>
+  <div class="card">
+    <strong>验证清单（扩展开启时全部应通过）：</strong>
+    <ol>
+      <li>能用鼠标选中上面的文字</li>
+      <li>右键能弹出浏览器菜单</li>
+      <li>Ctrl+C / Cmd+C 可以复制</li>
+      <li>粘贴结果是原文，没有附加文字</li>
+    </ol>
+  </div>
+  <p id="log"></p>
+
+  <script>
+    const log = (msg) => { document.getElementById('log').textContent = msg; };
+
+    // 防护 2：禁止右键
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      log('已拦截：右键菜单');
+    });
+
+    // 防护 3：劫持复制（粘贴时追加追踪文字）
+    document.addEventListener('copy', (e) => {
+      e.preventDefault();
+      e.clipboardData.setData('text/plain', '【本文出自防复制测试页】');
+      log('已拦截：复制事件（粘贴内容被篡改）');
+    });
+
+    // 防护 4：禁止选择
+    document.addEventListener('selectstart', (e) => {
+      e.preventDefault();
+      log('已拦截：文本选择');
+    });
+
+    // 防护 5：禁止快捷键
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && ['c', 'x', 'a', 'u', 's'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        log('已拦截：快捷键 ' + e.key.toUpperCase());
+      }
+    });
+  </script>
+</body>
+</html>

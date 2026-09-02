@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Enable Copy - 解除复制限制",
+  "version": "1.0.0",
+  "description": "解除网页对复制、剪切、文本选择、右键菜单和快捷键的限制。",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Enable Copy"
+  }
+}
