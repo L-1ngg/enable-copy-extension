@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="icons/icon128.png" width="96" alt="Enable Copy logo">
+
 # Enable Copy
 
 **解除网页复制 / 选择 / 右键限制的轻量浏览器扩展**
@@ -69,6 +71,7 @@ enable-copy-extension/
 ├── content.js        # 核心逻辑：事件拦截 + 样式注入
 ├── popup.html        # 工具栏弹窗界面
 ├── popup.js          # 开关状态管理
+├── icons/            # 扩展图标（16/32/48/128）
 ├── test-page.html    # 防复制模拟测试页
 └── LICENSE           # MIT 许可证
 ```

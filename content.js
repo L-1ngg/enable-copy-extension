@@ -82,10 +82,12 @@
     if (enabled) enable();
   });
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg && msg.type === 'enable-copy:set') {
       if (msg.enabled) enable();
       else disable();
+    } else if (msg && msg.type === 'enable-copy:ping') {
+      sendResponse({ active });
     }
   });
 })();

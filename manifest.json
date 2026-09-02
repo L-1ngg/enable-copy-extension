@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Enable Copy - 解除复制限制",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "解除网页对复制、剪切、文本选择、右键菜单和快捷键的限制。",
   "permissions": ["storage"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -14,6 +20,12 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Enable Copy"
+    "default_title": "Enable Copy",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }

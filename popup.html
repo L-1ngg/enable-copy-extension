@@ -3,75 +3,197 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      min-width: 220px;
-      margin: 0;
-      padding: 12px 16px;
+    :root {
+      --bg: #ffffff;
+      --card: #f6f8fa;
+      --border: #e5e7eb;
+      --text: #111827;
+      --text-sub: #6b7280;
+      --accent: #10b981;
+      --accent-grad: linear-gradient(135deg, #34d399, #14b8a6);
     }
-    .row {
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --card: #1f2937;
+        --border: #374151;
+        --text: #f9fafb;
+        --text-sub: #9ca3af;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 300px;
+      padding: 14px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* Header */
+    header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
-    .title {
-      font-size: 14px;
-      font-weight: 600;
+    header img {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
     }
-    .hint {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #666;
+    .title { font-size: 15px; font-weight: 700; line-height: 1.2; }
+    .version { font-size: 11px; color: var(--text-sub); }
+
+    /* Status card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 14px;
     }
-    /* iOS-style switch */
-    .switch {
-      position: relative;
-      width: 40px;
-      height: 22px;
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9ca3af;
+      transition: background 0.2s, box-shadow 0.2s;
       flex: none;
     }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
+    .dot.on {
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
     }
+    .status-text { font-size: 14px; font-weight: 600; flex: 1; }
+    .status-sub {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+      flex: none;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
     .slider {
       position: absolute;
       inset: 0;
       cursor: pointer;
-      background: #ccc;
-      border-radius: 22px;
-      transition: 0.2s;
+      background: #d1d5db;
+      border-radius: 24px;
+      transition: background 0.2s;
     }
     .slider::before {
       content: "";
       position: absolute;
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       left: 2px;
       top: 2px;
       background: #fff;
       border-radius: 50%;
-      transition: 0.2s;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     }
-    .switch input:checked + .slider {
-      background: #4caf50;
+    .switch input:checked + .slider { background: var(--accent-grad); }
+    .switch input:checked + .slider::before { transform: translateX(18px); }
+
+    /* Feature list */
+    .features {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px 10px;
+      margin-top: 12px;
     }
-    .switch input:checked + .slider::before {
-      transform: translateX(18px);
+    .features li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .features li::before {
+      content: "✓";
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--accent-grad);
+      color: #fff;
+      font-size: 10px;
+      flex: none;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--text-sub);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    footer a {
+      color: var(--text-sub);
+      text-decoration: none;
+    }
+    footer a:hover { color: var(--accent); }
+    #tab-warning {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #d97706;
+      line-height: 1.4;
     }
   </style>
 </head>
 <body>
-  <div class="row">
-    <span class="title">解除复制限制</span>
-    <label class="switch">
-      <input type="checkbox" id="toggle">
-      <span class="slider"></span>
-    </label>
+  <header>
+    <img src="icons/icon48.png" alt="logo">
+    <div>
+      <div class="title">Enable Copy</div>
+      <div class="version">v1.1.0 · 解除复制限制</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="status-row">
+      <span class="dot" id="dot"></span>
+      <span class="status-text" id="status-text">已启用</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="status-sub" id="status-sub">正在解除当前页面的复制限制</div>
+
+    <ul class="features">
+      <li>文本选择</li>
+      <li>右键菜单</li>
+      <li>复制 / 剪切</li>
+      <li>快捷键</li>
+    </ul>
+
+    <div id="tab-warning" hidden>⚠ 当前页面受浏览器安全策略限制，扩展无法注入</div>
   </div>
-  <div class="hint">切换后立即对当前标签页生效，其他标签页在刷新后生效。</div>
+
+  <footer>
+    <span>Manifest V3 · 不收集数据</span>
+    <a href="https://github.com/L-1ngg/enable-copy-extension" target="_blank">GitHub</a>
+  </footer>
+
   <script src="popup.js"></script>
 </body>
 </html>
