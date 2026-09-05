@@ -2,7 +2,8 @@
   "name": "enable-copy-extension",
   "private": true,
   "scripts": {
-    "test": "node --test tests/regression.cjs"
+    "test": "node --test tests/regression.cjs",
+    "test:popup": "node --test tests/popup-layout.cjs"
   },
   "devDependencies": {
     "playwright": "1.58.2"

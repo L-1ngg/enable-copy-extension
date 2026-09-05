@@ -2,29 +2,41 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enable Copy</title>
   <style>
     :root {
       --bg: #ffffff;
-      --card: #f6f8fa;
-      --border: #e5e7eb;
-      --text: #111827;
-      --text-sub: #6b7280;
-      --accent: #10b981;
-      --accent-grad: linear-gradient(135deg, #34d399, #14b8a6);
+      color-scheme: light dark;
+      --surface: #f6f8f9;
+      --border: #e9edef;
+      --text: #243331;
+      --text-sub: #677572;
+      --accent: #168268;
+      --active-bg: #edf8f2;
+      --track: #c4cecb;
+      --warning-bg: #fff5e9;
+      --warning-text: #865518;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #111827;
-        --card: #1f2937;
-        --border: #374151;
-        --text: #f9fafb;
-        --text-sub: #9ca3af;
+        --bg: #202423;
+        --surface: #292e2d;
+        --border: #363e3b;
+        --text: #edf3f0;
+        --text-sub: #acbab3;
+        --accent: #72d8b6;
+        --active-bg: #253c32;
+        --track: #67756f;
+        --warning-bg: #3b3022;
+        --warning-text: #edc28b;
       }
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; letter-spacing: 0; }
+    /* Chrome sizes action popups from their content. Viewport-relative width
+       limits create a sizing loop while the popup is first being measured. */
+    html, body { width: 320px; min-width: 320px; }
     body {
-      width: 300px;
-      padding: 14px;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
       background: var(--bg);
       color: var(--text);
@@ -34,114 +46,91 @@
     header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 11px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
     }
     header img {
-      width: 34px;
-      height: 34px;
-      border-radius: 9px;
+      width: 32px;
+      height: 32px;
+      flex: none;
     }
-    .title { font-size: 15px; font-weight: 700; line-height: 1.2; }
-    .version { font-size: 11px; color: var(--text-sub); }
+    .title { font-size: 17px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+    .version { font-size: 11px; color: var(--text-sub); font-variant-numeric: tabular-nums; }
 
-    /* Status card */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 13px 14px;
+    .site { padding: 16px 20px; }
+    .site-label { font-size: 12px; font-weight: 400; color: var(--text-sub); }
+    .status-sub {
+      margin-top: 7px;
+      min-height: 21px;
+      font-size: 15px;
+      font-weight: 500;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
     }
     .status-row {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 10px;
+      min-height: 68px;
+      padding: 12px 20px;
+      background: var(--surface);
+      transition: background 0.18s;
     }
+    body[data-state="enabled"] .status-row { background: var(--active-bg); }
     .dot {
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: #9ca3af;
-      transition: background 0.2s, box-shadow 0.2s;
+      background: var(--text-sub);
+      transition: background 0.18s;
       flex: none;
     }
     .dot.on {
       background: var(--accent);
-      box-shadow: 0 0 6px var(--accent);
     }
-    .status-text { font-size: 14px; font-weight: 600; flex: 1; }
-    .status-sub {
-      margin-top: 6px;
-      font-size: 12px;
-      color: var(--text-sub);
-      line-height: 1.5;
-      overflow-wrap: anywhere;
-    }
+    .status-text { font-size: 14px; font-weight: 500; line-height: 1.5; flex: 1; white-space: nowrap; }
+    body[data-state="enabled"] .status-text { color: var(--accent); }
 
     /* Switch */
     .switch {
       position: relative;
-      width: 42px;
-      height: 24px;
+      width: 48px;
+      height: 44px;
       flex: none;
     }
-    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; }
     .slider {
       position: absolute;
-      inset: 0;
+      inset: 9px 0;
       cursor: pointer;
-      background: #d1d5db;
-      border-radius: 24px;
-      transition: background 0.2s;
+      background: var(--track);
+      border-radius: 26px;
+      pointer-events: none;
+      transition: background 0.18s;
     }
     .slider::before {
       content: "";
       position: absolute;
       width: 20px;
       height: 20px;
-      left: 2px;
-      top: 2px;
+      left: 3px;
+      top: 3px;
       background: #fff;
       border-radius: 50%;
-      transition: transform 0.2s;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      transition: transform 0.18s;
+      box-shadow: 0 1px 3px rgba(24, 47, 39, 0.15);
     }
-    .switch input:checked + .slider { background: var(--accent-grad); }
-    .switch input:checked + .slider::before { transform: translateX(18px); }
-    .switch input:disabled + .slider { opacity: 0.5; cursor: default; }
-
-    /* Feature list */
-    .features {
-      list-style: none;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7px 10px;
-      margin-top: 12px;
-    }
-    .features li {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--text-sub);
-    }
-    .features li::before {
-      content: "✓";
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      background: var(--accent-grad);
-      color: #fff;
-      font-size: 10px;
-      flex: none;
-    }
+    .switch input:not(:disabled) { cursor: pointer; }
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::before { transform: translateX(22px); }
+    .switch input:disabled + .slider { opacity: 0.45; }
+    .switch input:focus-visible + .slider { outline: 2px solid var(--accent); outline-offset: 4px; }
 
     /* Footer */
     footer {
-      margin-top: 12px;
+      padding: 8px 20px;
+      min-height: 50px;
       font-size: 11px;
       color: var(--text-sub);
       display: flex;
@@ -153,54 +142,54 @@
       text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      min-height: 34px;
+      border-radius: 4px;
     }
     footer a:hover { color: var(--accent); }
+    footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
     footer a svg {
       width: 13px;
       height: 13px;
       fill: currentColor;
     }
     #tab-warning {
-      margin-top: 10px;
-      font-size: 11px;
-      color: #d97706;
-      line-height: 1.4;
+      padding: 12px 20px;
+      font-size: 12px;
+      color: var(--warning-text);
+      background: var(--warning-bg);
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
     }
   </style>
 </head>
-<body>
+<body data-state="loading">
   <header>
-    <img src="icons/icon48.png" alt="logo">
-    <div>
-      <div class="title">Enable Copy</div>
-      <div class="version">v1.1.0 · 解除复制限制</div>
-    </div>
+    <img src="icons/icon48.png" alt="" width="32" height="32">
+    <h1 class="title">Enable Copy</h1>
   </header>
 
-  <div class="card">
+  <main aria-busy="true" id="main">
+    <div class="site">
+      <div class="site-label">当前站点</div>
+      <div class="status-sub" id="status-sub">正在读取站点</div>
+    </div>
     <div class="status-row">
-      <span class="dot" id="dot"></span>
-      <span class="status-text" id="status-text">正在读取状态</span>
+      <span class="dot" id="dot" aria-hidden="true"></span>
+      <span class="status-text" id="status-text" role="status">正在读取状态</span>
       <label class="switch">
-        <input type="checkbox" id="toggle" aria-label="在本站启用强制解除" disabled>
-        <span class="slider"></span>
+        <input type="checkbox" role="switch" id="toggle" aria-label="在本站启用强制解除" aria-describedby="status-sub" disabled>
+        <span class="slider" aria-hidden="true"></span>
       </label>
     </div>
-    <div class="status-sub" id="status-sub"></div>
-
-    <ul class="features">
-      <li>文本选择</li>
-      <li>右键菜单</li>
-      <li>复制 / 剪切</li>
-      <li>快捷键</li>
-    </ul>
-
-    <div id="tab-warning" hidden>⚠ 当前页面受浏览器安全策略限制，扩展无法注入</div>
-  </div>
+    <div id="tab-warning" role="alert" hidden>此页面无法连接扩展。普通网页可刷新后重试。</div>
+  </main>
 
   <footer>
-    <span>Manifest V3 · 不收集数据</span>
+    <span class="version">v1.1.0</span>
     <a href="https://github.com/L-1ngg/enable-copy-extension" target="_blank"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a>
   </footer>
 

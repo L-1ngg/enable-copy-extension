@@ -5,11 +5,13 @@ const dot = document.getElementById('dot');
 const statusText = document.getElementById('status-text');
 const statusSub = document.getElementById('status-sub');
 const tabWarning = document.getElementById('tab-warning');
+const main = document.getElementById('main');
 let storageKey = null;
 
 function render(enabled) {
   toggle.checked = enabled;
   dot.classList.toggle('on', enabled);
+  document.body.dataset.state = enabled ? 'enabled' : 'disabled';
   statusText.textContent = enabled ? '本站已启用' : '本站已停用';
 }
 
@@ -17,6 +19,8 @@ toggle.addEventListener('change', async () => {
   if (!storageKey) return;
   const enabled = toggle.checked;
   toggle.disabled = true;
+  main.setAttribute('aria-busy', 'true');
+  statusText.textContent = '正在保存';
   tabWarning.hidden = true;
   try {
     await chrome.storage.local.set({ [storageKey]: enabled });
@@ -27,6 +31,7 @@ toggle.addEventListener('change', async () => {
     tabWarning.hidden = false;
   } finally {
     toggle.disabled = false;
+    main.setAttribute('aria-busy', 'false');
   }
 });
 
@@ -43,13 +48,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const state = await chrome.tabs.sendMessage(tab.id, { type: 'enable-copy:ping' }, { frameId: 0 });
     if (!state?.storageKey) throw new Error('Content script unavailable');
     storageKey = state.storageKey;
-    statusSub.textContent = state.site;
+    const siteUrl = new URL(state.site);
+    statusSub.textContent = siteUrl.host || state.site;
+    statusSub.title = state.site;
     const values = await chrome.storage.local.get(storageKey);
     render(values[storageKey] === true);
     toggle.disabled = false;
   } catch (_) {
+    document.body.dataset.state = 'unavailable';
     statusText.textContent = '当前页面不可用';
-    statusSub.textContent = '';
+    statusSub.textContent = '无法获取站点';
     tabWarning.hidden = false;
+  } finally {
+    main.setAttribute('aria-busy', 'false');
   }
 })();

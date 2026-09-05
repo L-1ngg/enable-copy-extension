@@ -58,6 +58,8 @@ npm test
 
 也可通过 `CHROMIUM_PATH=/path/to/chrome npm test` 使用已有的支持加载扩展的 Chromium。
 
+弹窗布局另用 `npm run test:popup` 验证：通过 `chrome.action.openPopup()` 打开真实工具栏弹窗，检查 100%、125%、150% 显示缩放下的宽度、文字换行和控件位置。此测试需要图形环境；无桌面的 Linux 可运行 `xvfb-run -a npm run test:popup`。
+
 ## 🔧 工作原理
 
 内容脚本在 `document_start` 阶段注入，默认不修改页面。仅在顶层站点已启用时，在 `window` 捕获阶段对
