@@ -1,0 +1,10 @@
+{
+  "name": "enable-copy-extension",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/regression.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
+}
