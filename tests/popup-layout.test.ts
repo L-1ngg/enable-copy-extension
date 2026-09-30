@@ -1,22 +1,26 @@
-const assert = require('node:assert/strict');
-const { test } = require('node:test');
-const { mkdtemp, mkdir, rm, writeFile } = require('node:fs/promises');
-const { tmpdir } = require('node:os');
-const path = require('node:path');
-const { chromium } = require('playwright');
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { chromium } from 'playwright';
+import type { BrowserContext, CDPSession } from 'playwright';
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(import.meta.dirname, '..');
 const extensionRoot = path.join(root, 'dist');
 
 // Action popups start as "other" targets, so Playwright does not expose them
 // as pages. Attach directly without emulating a viewport or resizing the popup.
-async function attachPopup(browserSession, targetId) {
+async function attachPopup(browserSession: CDPSession, targetId: string) {
+  type Command = Parameters<CDPSession['send']>[0];
+  type CommandParams<T extends Command> = Parameters<typeof browserSession.send<T>>[1];
+  type CommandResult<T extends Command> = Awaited<ReturnType<typeof browserSession.send<T>>>;
   const { sessionId } = await browserSession.send('Target.attachToTarget', { targetId, flatten: false });
   let sequence = 0;
-  const pending = new Map();
-  const onMessage = event => {
+  const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+  const onMessage: Parameters<typeof browserSession.on<'Target.receivedMessageFromTarget'>>[1] = event => {
     if (event.sessionId !== sessionId) return;
-    const message = JSON.parse(event.message);
+    const message: { id: number; result?: unknown; error?: { message: string } } = JSON.parse(event.message);
     const request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id);
@@ -24,19 +28,19 @@ async function attachPopup(browserSession, targetId) {
     else request.resolve(message.result);
   };
   browserSession.on('Target.receivedMessageFromTarget', onMessage);
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
+  const send = <T extends Command>(method: T, params?: CommandParams<T>): Promise<CommandResult<T>> => new Promise((resolve, reject) => {
     const id = ++sequence;
-    pending.set(id, { resolve, reject });
+    pending.set(id, { resolve: value => resolve(value as CommandResult<T>), reject });
     browserSession.send('Target.sendMessageToTarget', {
       sessionId, message: JSON.stringify({ id, method, params }),
     }).catch(error => { pending.delete(id); reject(error); });
   });
   return {
     send,
-    async evaluate(expression) {
+    async evaluate<T = unknown>(expression: string): Promise<T> {
       const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
       assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
-      return result.result.value;
+      return result.result.value as T;
     },
     async close() {
       browserSession.off('Target.receivedMessageFromTarget', onMessage);
@@ -48,11 +52,11 @@ async function attachPopup(browserSession, targetId) {
 for (const scale of [1, 1.25, 1.5]) {
   test(`native toolbar popup layout at display scale ${scale}`, { timeout: 30000 }, async () => {
     const profile = await mkdtemp(path.join(tmpdir(), 'enable-copy-popup-'));
-    let context;
+    let context: BrowserContext | undefined;
     try {
       context = await chromium.launchPersistentContext(profile, {
         channel: 'chromium',
-        executablePath: process.env.CHROMIUM_PATH || undefined,
+        ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
         headless: false,
         viewport: null,
         colorScheme: 'light',
@@ -66,7 +70,7 @@ for (const scale of [1, 1.25, 1.5]) {
       }));
       const page = await context.newPage();
       const pageSession = await context.newCDPSession(page);
-      const worlds = [];
+      const worlds: { id: number; origin: string }[] = [];
       pageSession.on('Runtime.executionContextCreated', event => worlds.push(event.context));
       await pageSession.send('Runtime.enable');
       await page.goto('https://github.com/');
@@ -78,7 +82,9 @@ for (const scale of [1, 1.25, 1.5]) {
       const popupUrl = `chrome-extension://${extensionId}/popup.html`;
       const control = await context.newPage();
       await control.goto(popupUrl);
-      const browserSession = await context.browser().newBrowserCDPSession();
+      const browser = context.browser();
+      assert.ok(browser);
+      const browserSession = await browser.newBrowserCDPSession();
 
       const openPopup = async () => {
         await page.bringToFront();
@@ -99,8 +105,18 @@ for (const scale of [1, 1.25, 1.5]) {
         })`);
         return popup;
       };
-      const checkLayout = async (popup, name) => {
-        const metrics = await popup.evaluate(`(() => {
+      const checkLayout = async (popup: Awaited<ReturnType<typeof attachPopup>>, name: string) => {
+        const metrics = await popup.evaluate<{
+          width: number;
+          height: number;
+          bodyWidth: number;
+          scrollWidth: number;
+          titleSingleLine: boolean;
+          statusSingleLine: boolean;
+          status: { right: number };
+          toggle: { left: number };
+          site: { right: number };
+        }>(`(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
           const singleLine = selector => {
             const node = document.querySelector(selector);

@@ -23,9 +23,12 @@ for (const asset of ['popup.html', 'icons']) {
 }
 
 // Keep the root install path stable while also emitting a standalone extension.
-const manifest = JSON.parse(await readFile(path.join(root, 'manifest.json'), 'utf8'));
+const manifest: chrome.runtime.ManifestV3 = JSON.parse(await readFile(path.join(root, 'manifest.json'), 'utf8'));
+if (!manifest.content_scripts || !manifest.action?.default_popup) {
+  throw new Error('The extension manifest must define content scripts and a popup');
+}
 for (const script of manifest.content_scripts) {
-  script.js = script.js.map(file => path.posix.relative('dist', file));
+  script.js = script.js?.map(file => path.posix.relative('dist', file)) ?? [];
 }
 manifest.action.default_popup = path.posix.relative('dist', manifest.action.default_popup);
 await writeFile(path.join(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);

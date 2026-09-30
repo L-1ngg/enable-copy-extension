@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node", "chrome"],
+    "erasableSyntaxOnly": true
+  },
+  "include": ["scripts/**/*.ts", "tests/**/*.ts"]
+}

@@ -30,7 +30,7 @@
 
 ## 🚀 安装
 
-需要 Chrome / Edge 119 或更新版本，以及 Bun 1.3.12 和 Node.js 环境。Bun 负责依赖管理和脚本调度，构建脚本及浏览器测试通过 Node.js 运行。
+需要 Chrome / Edge 119 或更新版本，以及 Bun 1.3.12 和 Node.js 24 或更新版本。Bun 负责依赖管理并直接运行 TypeScript 构建脚本；浏览器测试使用 Node.js 原生 TypeScript 支持运行。
 
 1. 克隆或下载本仓库
    ```bash
@@ -67,7 +67,7 @@ bun run test
 
 也可通过 `CHROMIUM_PATH=/path/to/chrome bun run test` 使用已有的支持加载扩展的 Chromium。
 
-`bun run test` 和 `bun run test:popup` 会先运行严格 TypeScript 类型检查并重新构建扩展。单独检查源码可运行 `bun run typecheck`。测试使用 `node:test`，请通过 `bun run test` 执行项目脚本。构建仅打包本地脚本、生成清单并复制弹窗和图标；发布或分发时使用 `dist/`，无需包含源码或开发依赖。
+`bun run test` 和 `bun run test:popup` 会先对业务源码、构建工具和测试运行严格 TypeScript 类型检查，并重新构建扩展。单独检查可运行 `bun run typecheck`。测试文件为 `tests/*.test.ts`，使用 `node:test`，请通过 `bun run test` 执行项目脚本。构建仅打包本地脚本、生成清单并复制弹窗和图标；发布或分发时使用 `dist/`，无需包含源码或开发依赖。
 
 弹窗布局另用 `bun run test:popup` 验证：通过 `chrome.action.openPopup()` 打开真实工具栏弹窗，检查 100%、125%、150% 显示缩放下的宽度、文字换行和控件位置。此测试需要图形环境；无桌面的 Linux 可运行 `xvfb-run -a bun run test:popup`。
 
@@ -105,12 +105,13 @@ enable-copy-extension/
 │   ├── content.ts    # 核心逻辑：事件拦截 + 样式注入
 │   ├── popup.ts      # 开关状态管理
 │   └── protocol.ts   # 站点存储键和消息类型
-├── scripts/build.mjs # 构建并复制扩展资源
+├── scripts/build.ts  # 构建并复制扩展资源
 ├── tsconfig.json     # 严格 TypeScript 配置
+├── tsconfig.tools.json # 构建工具和测试的 TypeScript 配置
 ├── bun.lock          # Bun 依赖锁文件
 ├── dist/             # 可直接加载的构建产物（不纳入版本控制）
 ├── icons/            # 扩展图标（16/32/48/128）
-├── tests/            # 真实 Chromium 回归和原生弹窗布局检查
+├── tests/            # TypeScript 编写的真实 Chromium 回归和原生弹窗布局检查
 ├── test-page.html    # 防复制模拟测试页
 └── LICENSE           # MIT 许可证
 ```
