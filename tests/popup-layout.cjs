@@ -6,6 +6,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
+const extensionRoot = path.join(root, 'dist');
 
 // Action popups start as "other" targets, so Playwright does not expose them
 // as pages. Attach directly without emulating a viewport or resizing the popup.
@@ -56,7 +57,7 @@ for (const scale of [1, 1.25, 1.5]) {
         viewport: null,
         colorScheme: 'light',
         args: [
-          `--disable-extensions-except=${root}`, `--load-extension=${root}`,
+          `--disable-extensions-except=${extensionRoot}`, `--load-extension=${extensionRoot}`,
           `--force-device-scale-factor=${scale}`,
         ],
       });
@@ -133,6 +134,21 @@ for (const scale of [1, 1.25, 1.5]) {
       await popup.evaluate("document.querySelector('#toggle').click()");
       await page.waitForSelector('#__enable_copy_style__', { state: 'attached' });
       await checkLayout(popup, 'enabled');
+      await popup.evaluate(`(() => {
+        chrome.storage.local.set = async () => { throw new Error('Simulated storage failure'); };
+        document.querySelector('#toggle').click();
+      })()`);
+      await popup.evaluate(`new Promise(resolve => {
+        const ready = () => {
+          if (document.querySelector('#main').getAttribute('aria-busy') !== 'false') return setTimeout(ready, 20);
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+        };
+        ready();
+      })`);
+      await checkLayout(popup, 'save-failed');
+      assert.equal(await popup.evaluate("document.querySelector('#toggle').checked"), true);
+      assert.equal(await popup.evaluate("document.querySelector('#toggle').disabled"), false);
+      assert.equal(await popup.evaluate("document.querySelector('#tab-warning').hidden"), false);
       await popup.close();
 
       await page.goto('https://a-very-long-subdomain-for-checking-popup-layout.documentation.example.com:8443/');

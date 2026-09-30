@@ -6,10 +6,14 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
+const extensionRoot = path.join(root, 'dist');
 const fixture = `<!doctype html><html><head></head><body>
   <p id="text">NATIVE_TEXT</p>
   <button id="copy">Copy</button>
   <button id="copy-preserve">Copy without changing selection</button>
+  <span id="role-copy" role="button">Custom copy button</span>
+  <button id="copy-nested">Nested copy</button>
+  <button id="copy-inner" hidden>Inner action</button>
   <div id="virtual" tabindex="0">Virtual editor</div>
   <div id="editable" contenteditable="true">EDITABLE_TEXT</div>
   <textarea id="input">INPUT_TEXT</textarea>
@@ -18,6 +22,16 @@ const fixture = `<!doctype html><html><head></head><body>
     document.querySelector('#copy').onclick = () => document.execCommand('copy');
     document.querySelector('#copy-preserve').onmousedown = e => e.preventDefault();
     document.querySelector('#copy-preserve').onclick = () => document.execCommand('copy');
+    document.querySelector('#role-copy').onmousedown = e => e.preventDefault();
+    document.querySelector('#role-copy').onclick = () => document.execCommand('copy');
+    document.querySelector('#copy-nested').onmousedown = e => e.preventDefault();
+    document.querySelector('#copy-nested').onclick = () => {
+      document.querySelector('#copy-inner').click();
+      document.execCommand('copy');
+    };
+    window.addEventListener('keydown', e => {
+      if (copyMode === 'capture' && (e.ctrlKey || e.metaKey) && e.key === 'a') e.preventDefault();
+    }, true);
     window.addEventListener('copy', e => {
       if (copyMode === 'capture') {
         e.preventDefault();
@@ -35,6 +49,10 @@ const fixture = `<!doctype html><html><head></head><body>
       }
     });
     document.querySelector('#virtual').addEventListener('keydown', e => {
+      if (e.ctrlKey && e.key === 'a') {
+        e.preventDefault();
+        window.virtualSelectAll = (window.virtualSelectAll || 0) + 1;
+      }
       if (e.ctrlKey && e.key === 'c') {
         e.preventDefault();
         navigator.clipboard.writeText('EDITOR_DATA');
@@ -50,11 +68,51 @@ test('real extension copy compatibility and site settings', { timeout: 60000 }, 
       channel: 'chromium',
       executablePath: process.env.CHROMIUM_PATH || undefined,
       headless: true,
-      args: [`--disable-extensions-except=${root}`, `--load-extension=${root}`],
+      args: [`--disable-extensions-except=${extensionRoot}`, `--load-extension=${extensionRoot}`],
       permissions: ['clipboard-read', 'clipboard-write'],
     });
     const errors = [];
     context.on('page', page => page.on('pageerror', error => errors.push(error.message)));
+    const key = 'enable-copy:site:https://copy.test';
+    await context.addInitScript(({ key }) => {
+      if (location.protocol !== 'chrome-extension:') return;
+      const scenario = new URLSearchParams(location.search).get('scenario');
+      if (!scenario) return;
+      const get = chrome.storage.local.get.bind(chrome.storage.local);
+      const set = chrome.storage.local.set.bind(chrome.storage.local);
+      const writeAndObserve = async enabled => {
+        const changed = new Promise(resolve => {
+          const listener = (changes, area) => {
+            if (area !== 'local' || !Object.hasOwn(changes, key)) return;
+            chrome.storage.onChanged.removeListener(listener);
+            resolve();
+          };
+          chrome.storage.onChanged.addListener(listener);
+        });
+        await set({ [key]: enabled });
+        await changed;
+      };
+      if (scenario === 'initial-read') {
+        let firstRead = true;
+        chrome.storage.local.get = async keys => {
+          const snapshot = await get(keys);
+          if (firstRead) {
+            firstRead = false;
+            await writeAndObserve(false);
+          }
+          return snapshot;
+        };
+      } else if (scenario === 'save-superseded' || scenario === 'save-failed') {
+        let firstWrite = true;
+        chrome.storage.local.set = async values => {
+          if (!firstWrite) return set(values);
+          firstWrite = false;
+          await writeAndObserve(true);
+          if (scenario === 'save-failed') throw new Error('Simulated storage failure after an external update');
+          await writeAndObserve(false);
+        };
+      }
+    }, { key });
     const restricted = await readFile(path.join(root, 'test-page.html'), 'utf8');
     await context.route('https://**/*', route => route.fulfill({
       contentType: 'text/html',
@@ -76,15 +134,14 @@ test('real extension copy compatibility and site settings', { timeout: 60000 }, 
 
     // A background target preserves the web tab as the active tab, as an
     // extension action popup does, while loading the real popup unchanged.
-    const openPopup = async target => {
+    const openPopup = async (target, scenario = '') => {
       await popup.close();
       await target.bringToFront();
       const opened = context.waitForEvent('page');
-      await cdp.send('Target.createTarget', { url: `chrome-extension://${extensionId}/popup.html`, background: true });
+      await cdp.send('Target.createTarget', { url: `chrome-extension://${extensionId}/popup.html?scenario=${scenario}`, background: true });
       popup = await opened;
       await popup.waitForFunction(() => !document.querySelector('#toggle').disabled);
     };
-    const key = 'enable-copy:site:https://copy.test';
     const setEnabled = async enabled => {
       await popup.evaluate(async ({ key, enabled }) => {
         await chrome.storage.local.set({ [key]: enabled });
@@ -184,7 +241,141 @@ test('real extension copy compatibility and site settings', { timeout: 60000 }, 
       });
     }
 
+    await t.test('select all works before there is a text selection', async () => {
+      await setEnabled(true);
+      await reset('capture');
+      await page.keyboard.press('Control+a');
+      assert.match(await page.evaluate(() => getSelection().toString()), /NATIVE_TEXT/);
+    });
+
+    await t.test('ARIA copy buttons retain their custom clipboard data', async () => {
+      await setEnabled(true);
+      await reset('custom');
+      await select(page, '#text');
+      await page.click('#role-copy');
+      assert.equal(await clipboard(page), 'GENERATED_DATA');
+      await page.keyboard.press('Control+c');
+      assert.equal(await clipboard(page), 'NATIVE_TEXT');
+    });
+
+    await t.test('nested button clicks preserve custom copy only during dispatch', async () => {
+      await setEnabled(true);
+      await reset('custom');
+      await select(page, '#text');
+      await page.click('#copy-nested');
+      assert.equal(await clipboard(page), 'GENERATED_DATA');
+      await page.keyboard.press('Control+c');
+      assert.equal(await clipboard(page), 'NATIVE_TEXT');
+    });
+
+    await t.test('focused custom widgets and shadow editors retain native interactions', async () => {
+      await setEnabled(true);
+      await reset();
+      await page.focus('#virtual');
+      await page.keyboard.press('Control+a');
+      assert.equal(await page.evaluate(() => window.virtualSelectAll), 1);
+      await page.evaluate(() => {
+        const host = document.createElement('div');
+        host.id = 'shadow-editor';
+        const shadow = host.attachShadow({ mode: 'open' });
+        shadow.innerHTML = '<textarea>SHADOW_INPUT</textarea>';
+        document.body.appendChild(host);
+        shadow.querySelector('textarea').focus();
+        // Global handlers also receive events whose path omits the editor.
+        window.addEventListener('contextmenu', () => { window.shadowContextMenuCount = 1; }, { once: true });
+        document.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+      });
+      assert.equal(await page.evaluate(() => window.shadowContextMenuCount), 1);
+      await page.keyboard.press('Control+a');
+      await page.keyboard.press('Control+c');
+      assert.equal(await clipboard(page), 'SHADOW_INPUT');
+      await page.evaluate(() => document.querySelector('#shadow-editor').remove());
+    });
+
+    await t.test('page-owned style IDs do not prevent enable or get removed on disable', async () => {
+      await setEnabled(false);
+      try {
+        await page.evaluate(() => {
+          const node = document.createElement('div');
+          node.id = '__enable_copy_style__';
+          node.dataset.pageOwned = 'true';
+          document.body.appendChild(node);
+        });
+        await popup.evaluate(key => chrome.storage.local.set({ [key]: true }), key);
+        await page.waitForSelector('style#__enable_copy_style__', { state: 'attached', timeout: 1500 });
+        await popup.evaluate(key => chrome.storage.local.set({ [key]: false }), key);
+        await page.waitForFunction(() => !document.querySelector('style#__enable_copy_style__'), null, { timeout: 1500 });
+        assert.equal(await page.locator('[data-page-owned]').count(), 1);
+      } finally {
+        await popup.evaluate(key => chrome.storage.local.set({ [key]: false }), key);
+        await page.evaluate(() => document.querySelector('[data-page-owned]')?.remove());
+      }
+    });
+
+    await t.test('inherited-origin frames follow the top-level site setting', async () => {
+      await setEnabled(true);
+      const framed = await context.newPage();
+      try {
+        await framed.goto('https://copy.test/inherited-frames');
+        await framed.evaluate(() => {
+          const srcdoc = document.createElement('iframe');
+          srcdoc.id = 'srcdoc';
+          srcdoc.srcdoc = '<p>SRCDOC_TEXT</p>';
+          document.body.appendChild(srcdoc);
+          const blank = document.createElement('iframe');
+          blank.id = 'blank';
+          document.body.appendChild(blank);
+          const blob = document.createElement('iframe');
+          blob.id = 'blob';
+          blob.src = URL.createObjectURL(new Blob(['<p>BLOB_TEXT</p>'], { type: 'text/html' }));
+          document.body.appendChild(blob);
+          const data = document.createElement('iframe');
+          data.id = 'data';
+          data.src = 'data:text/html,<p>DATA_TEXT</p>';
+          document.body.appendChild(data);
+        });
+        for (const selector of ['#srcdoc', '#blank', '#blob', '#data']) {
+          const frame = await (await framed.$(selector)).contentFrame();
+          await frame.waitForSelector('style#__enable_copy_style__', { state: 'attached', timeout: 1500 });
+        }
+        await setEnabled(false);
+        for (const selector of ['#srcdoc', '#blank', '#blob', '#data']) {
+          const frame = await (await framed.$(selector)).contentFrame();
+          await frame.waitForSelector('style#__enable_copy_style__', { state: 'detached', timeout: 1500 });
+        }
+      } finally {
+        await framed.close();
+      }
+    });
+
+    await t.test('removed, moved and edited extension styles recover and disable cleanly', async () => {
+      await setEnabled(true);
+      try {
+        await page.evaluate(() => {
+          document.querySelector('#text').style.userSelect = 'none';
+          document.querySelector('style#__enable_copy_style__').firstChild.data = '* { user-select: none !important; }';
+        });
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('#text')).userSelect === 'auto');
+        await page.evaluate(() => document.querySelector('style#__enable_copy_style__').remove());
+        await page.waitForSelector('style#__enable_copy_style__', { state: 'attached' });
+        await page.evaluate(() => {
+          const host = document.createElement('div');
+          host.id = 'style-shadow';
+          document.body.appendChild(host);
+          host.attachShadow({ mode: 'open' }).appendChild(document.querySelector('style#__enable_copy_style__'));
+        });
+        await page.waitForSelector('style#__enable_copy_style__', { state: 'attached' });
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#text')).userSelect), 'auto');
+        await setEnabled(false);
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#text')).userSelect), 'none');
+      } finally {
+        await page.evaluate(() => document.querySelector('#text').style.removeProperty('user-select'));
+        await page.evaluate(() => document.querySelector('#style-shadow')?.remove());
+      }
+    });
+
     await t.test('site scope, existing tabs, cross-origin frames and reload', async () => {
+      await setEnabled(true);
       const second = await context.newPage();
       await second.goto('https://copy.test/second');
       const other = await context.newPage();
@@ -237,7 +428,81 @@ test('real extension copy compatibility and site settings', { timeout: 60000 }, 
       await popup.evaluate(key => chrome.storage.local.remove(key), key);
       await page.waitForSelector('#__enable_copy_style__', { state: 'detached' });
     });
+
+    await t.test('popup initial reads cannot overwrite newer storage events', async () => {
+      await setEnabled(true);
+      await openPopup(page, 'initial-read');
+      assert.equal(await popup.locator('#toggle').isChecked(), false);
+      await page.waitForSelector('#__enable_copy_style__', { state: 'detached' });
+    });
+
+    await t.test('popup save completion cannot overwrite a superseding update', async () => {
+      await setEnabled(false);
+      await openPopup(page, 'save-superseded');
+      await popup.locator('.switch').click();
+      await popup.waitForFunction(() => document.querySelector('#main').getAttribute('aria-busy') === 'false');
+      assert.equal(await popup.locator('#toggle').isChecked(), false);
+      assert.equal(await popup.evaluate(key => chrome.storage.local.get(key).then(values => values[key]), key), false);
+      await page.waitForSelector('#__enable_copy_style__', { state: 'detached' });
+    });
+
+    await t.test('failed popup saves preserve external updates and can be retried', async () => {
+      await setEnabled(false);
+      await openPopup(page, 'save-failed');
+      await popup.locator('.switch').click();
+      await popup.waitForFunction(() => document.querySelector('#main').getAttribute('aria-busy') === 'false');
+      assert.equal(await popup.locator('#toggle').isChecked(), true);
+      assert.equal(await popup.locator('#toggle').isEnabled(), true);
+      assert.equal(await popup.locator('#tab-warning').isVisible(), true);
+      await page.waitForSelector('#__enable_copy_style__', { state: 'attached' });
+      await popup.locator('.switch').click();
+      await page.waitForSelector('#__enable_copy_style__', { state: 'detached' });
+      assert.equal(await popup.locator('#tab-warning').isVisible(), false);
+    });
     assert.deepEqual(errors, []);
+  } finally {
+    await context?.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test('existing root installs load the build and retain settings across browser restarts', { timeout: 30000 }, async () => {
+  const profile = await mkdtemp(path.join(tmpdir(), 'enable-copy-root-'));
+  let context;
+  let firstId;
+  try {
+    for (const restart of [false, true]) {
+      context = await chromium.launchPersistentContext(profile, {
+        channel: 'chromium',
+        executablePath: process.env.CHROMIUM_PATH || undefined,
+        headless: true,
+        args: [`--disable-extensions-except=${root}`, `--load-extension=${root}`],
+      });
+      await context.route('https://**/*', route => route.fulfill({ contentType: 'text/html', body: fixture }));
+      const page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
+      const worlds = [];
+      cdp.on('Runtime.executionContextCreated', event => worlds.push(event.context));
+      await cdp.send('Runtime.enable');
+      await page.goto('https://copy.test/root-install');
+      const world = worlds.find(item => item.origin.startsWith('chrome-extension://'));
+      assert.ok(world, 'The root manifest must load the compiled content script');
+      const extensionId = (await cdp.send('Runtime.evaluate', {
+        expression: 'chrome.runtime.id', contextId: world.id, returnByValue: true,
+      })).result.value;
+      if (restart) {
+        assert.equal(extensionId, firstId);
+      } else {
+        firstId = extensionId;
+        const popup = await context.newPage();
+        await popup.goto(`chrome-extension://${extensionId}/dist/popup.html`);
+        await popup.waitForFunction(() => document.querySelector('#main').getAttribute('aria-busy') === 'false');
+        await popup.evaluate(() => chrome.storage.local.set({ 'enable-copy:site:https://copy.test': true }));
+      }
+      await page.waitForSelector('style#__enable_copy_style__', { state: 'attached' });
+      await context.close();
+      context = undefined;
+    }
   } finally {
     await context?.close();
     await rm(profile, { recursive: true, force: true });
